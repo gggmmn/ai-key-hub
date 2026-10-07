@@ -1,0 +1,23 @@
+# ── 运行时数据（绝对不要提交）──
+data/
+certs/
+logs/
+*.log
+初始口令.txt
+sessions.json
+data.json
+master.key
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ── 编辑器 / 系统 ──
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

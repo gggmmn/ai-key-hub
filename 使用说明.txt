@@ -1,0 +1,146 @@
+════════════════════════════════════════════════════════════════
+  AI 密钥网关  ·  部署包使用说明
+════════════════════════════════════════════════════════════════
+
+【一、这包能装在什么机器上】
+
+  ✅ 任何 Linux：物理机 / 虚拟机 / VPS / 云服务器
+       Ubuntu · Debian · CentOS · RHEL · Rocky · Alma · Fedora
+       Alpine · Arch · openSUSE（脚本会自动识别并适配包管理器）
+  ✅ 有 systemd 的容器（Docker / LXC）—— 能开机自启
+  ⚠️ WSL2：默认没开 systemd，能跑起来但不会开机自启（脚本会提示）
+  ❌ 不支持 Windows / macOS
+
+  ★ 不需要 Docker，不需要装任何 Python 库，不需要证书。
+  ★ 有 systemd 就配系统服务开机自启；没有 systemd 会自动生成 /root/ai-keys-start.sh
+
+【二、安装前确认两件事】
+
+  1. 你有 root 权限（或者能用 sudo）
+  2. 这台机器能上外网（要访问上游 AI 服务商的 API）
+
+【三、安装步骤（第 1 步在你自己电脑上，第 2-4 步在服务器上）】
+
+  ┌─ 第 1 步：把这两个文件下载到服务器上的同一个目录
+  │      ai-keys.tar.gz      （程序本体）
+  │      install.sh          （安装脚本）
+  │   ★ 必须放在同一个目录里，脚本要在旁边找压缩包
+  │
+  ├─ 第 2 步：进入那个目录，用 root 执行
+  │      cd /你放文件的目录
+  │      sudo bash install.sh
+  │
+  ├─ 第 3 步：按提示输入两个参数
+  │      1) 服务端口    → 直接回车 = 用默认 47586
+  │                       如果提示"已被占用"，换个数字（比如 8080、18080）
+  │      2) 访问口令    → 自己设一个，至少 6 位，输入时不显示
+  │                       （会让你输两次确认。这就是你以后进后台要输的密码）
+  │
+  └─ 第 4 步：脚本跑完会直接打印出这些，记下来即可
+         管理后台   会列出【公网 / 内网 / 本机】三个地址，按需任选一个
+         Base URL   http://你的IP:端口/v1
+         API Key    gw-xxxxxxxx…      ← 这就是网关令牌
+         模型名     auto              ← 客户端"模型"那一栏填这个
+     ★ 地址是怎么来的：脚本会自动列出本机所有可用 IPv4，并联网查一次真实
+       公网 IP（云服务器有 NAT，网卡上只有内网地址，所以必须联网查）。
+
+  整个安装过程 10 秒左右（依赖都齐的情况下）。
+
+【四、装完长什么样】
+
+  程序位置：/root/ai-keys/
+      server.py             后端主程序
+      static/index.html     管理界面
+      data/data.json        你的密钥和设置      ★必须备份
+      data/master.key       加密种子            ★必须备份（丢了密钥全废）
+      data/sessions.json    登录会话（记住 7 天）
+      logs/app.log          运行日志
+
+  日志：journalctl -u ai-keys -f
+
+【五、客户端怎么配（Cherry Studio / NextChat / Cursor / one-api / Python SDK…）】
+
+      Base URL :  http://你的服务器IP:你设的端口/v1
+      API Key  :  安装时打印的 gw-xxxx 那串（后台"设置"里也能复制）
+      模型名   :  auto（或你在后台改成的别的名字）
+
+  例：Python
+      from openai import OpenAI
+      c = OpenAI(base_url="http://1.2.3.4:47586/v1", api_key="gw-xxxx")
+      print(c.chat.completions.create(model="auto",
+            messages=[{"role":"user","content":"你好"}]).choices[0].message.content)
+
+  去后台点「＋ 新增密钥」把你各家服务商的 key 录进去（会自动检测能不能用），
+  网关就会按顺序自动挑一把可用的来回答，欠费/限速的自动跳过。
+
+【六、日常管理命令】
+
+  ── 情况 A：机器有 systemd（绝大多数 Linux 服务器都是）──
+      systemctl status  ai-keys      看状态
+      systemctl restart ai-keys      重启
+      systemctl stop    ai-keys      停止
+      systemctl disable ai-keys      关掉开机自启
+      journalctl -u ai-keys -f       实时看日志
+      ★ 这种情况下【不需要】启动脚本，脚本也不会生成它。
+
+  ── 情况 B：机器没有 systemd（部分容器 / 精简系统）──
+      部署脚本会自动在 /root 下生成一个启动脚本：
+
+          bash /root/ai-keys-start.sh start      启动
+          bash /root/ai-keys-start.sh stop       停止
+          bash /root/ai-keys-start.sh restart    重启
+          bash /root/ai-keys-start.sh status     看状态
+
+      特点：
+        · 自带守护 —— 进程崩了会自动拉起
+        · setsid 脱离终端 —— 关掉 SSH 窗口不会被杀
+        · 部署脚本还会顺手尝试加一条 cron @reboot 实现开机自启
+        · ★ 重启机器后如果服务没自己起来，执行第一条 start 即可
+
+  改口令    浏览器进后台 → 设置 → 修改访问口令
+  换端口    重新执行 sudo bash install.sh，输入新端口即可（原数据会保留）
+
+【七、卸载（删干净）】
+
+  systemctl disable --now ai-keys
+  rm -f /etc/systemd/system/ai-keys.service
+  systemctl daemon-reload
+  rm -rf /root/ai-keys
+  （★ 删之前记得先备份 data/data.json 和 data/master.key）
+
+【八、常见问题】
+
+  Q: 提示"端口 XXX 已被占用"？
+  A: 那个端口被别的程序占了。查是谁：ss -tlnp | grep :XXX
+     换个端口重跑，或先停掉占用它的程序。
+
+  Q: 提示"python3 缺失 → 正在自动安装"？
+  A: 正常，脚本会自己装。装不上会把日志路径告诉你（/tmp/aikeys-pm.log）。
+
+  Q: 浏览器打不开管理后台？
+  A: 1) 确认服务在跑：systemctl is-active ai-keys
+     2) 本机试：curl http://127.0.0.1:端口/health
+     3) 从外网访问要放行端口：云服务器控制台 → 安全组 → 放行 TCP 你的端口
+        （本机防火墙也要放：ufw allow 端口  或  firewall-cmd --add-port=端口/tcp）
+
+  Q: 重启机器后还要手动启动吗？
+  A: 不用，脚本已经配好开机自启（systemctl is-enabled ai-keys 应显示 enabled）。
+
+  Q: 已经在跑一个 ai-keys 了，再跑这个脚本会怎样？
+  A: 脚本会检测到并提示"本机已存在 ai-keys.service 但指向别处"，
+     让你确认要不要覆盖 —— 输入 n 就什么都不会改。
+
+  Q: 换成 http 会不会不安全？
+  A: 令牌是明文传输的。建议只在内网/可信网络用，或者套一层 HTTPS 反向代理。
+
+【九、一定要做的备份】
+
+  /root/ai-keys/data/data.json   和   /root/ai-keys/data/master.key
+
+  ★ 这两个文件【必须成对备份】。
+    · data.json 丢了  → 录的密钥和设置全没了，要重新录
+    · master.key 丢了 → 所有密钥永久无法解密，只能重新录
+    · 两个都丢        → 无解
+  建议加个定时任务每天打包一次。
+
+════════════════════════════════════════════════════════════════

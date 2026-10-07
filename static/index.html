@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 密钥管理中心</title>
+<style>
+:root{
+  --bg:#0a0e16; --card:#141c2a; --card2:#1a2437; --line:#25324a;
+  --fg:#e8eef8; --dim:#8b9bb4; --acc:#4f8cff; --acc2:#22d3ee;
+  --ok:#31c48d; --warn:#f5a623; --err:#ff5f5f;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}   /* ★ 必须：否则 #login{display:flex} 会盖掉 hidden */
+html,body{height:100%}
+body{margin:0;color:var(--fg);background:radial-gradient(1100px 560px at 15% -12%,#16233c,transparent),var(--bg);
+  font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased}
+a{color:var(--acc);text-decoration:none}
+button{font:inherit;cursor:pointer;border:0;border-radius:9px;transition:.16s}
+input,select,textarea{font:inherit;color:var(--fg);background:#0e1622;border:1px solid var(--line);
+  border-radius:9px;padding:9px 11px;outline:none;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(79,140,255,.15)}
+.btn{background:var(--card2);color:var(--fg);padding:9px 15px;border:1px solid var(--line)}
+.btn:hover{background:#22304a;border-color:#31415e}
+.btn-p{background:linear-gradient(135deg,var(--acc),#3b6fe0);color:#fff;border:1px solid transparent}
+.btn-p:hover{filter:brightness(1.1)}
+.btn-d{background:#2a1620;color:var(--err);border:1px solid #4a2230}
+.btn-d:hover{background:#3a1c2a}
+.btn-s{padding:5px 9px;font-size:12px;border-radius:8px}
+.acts .btn-s{white-space:nowrap}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+/* ── 登录 ── */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.lcard{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:18px;
+  padding:34px 28px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.lcard h1{margin:0 0 6px;font-size:22px;letter-spacing:.5px}
+.lcard p{margin:0 0 22px;color:var(--dim);font-size:13px}
+.lcard .btn{width:100%;margin-top:14px;padding:11px}
+.lock{font-size:38px;margin-bottom:10px}
+#loginErr{margin-top:12px;color:var(--err);font-size:13px;min-height:19px}
+
+/* ── 应用 ── */
+#app{max-width:1220px;margin:0 auto;padding:20px}
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+.brand{font-size:19px;font-weight:600;letter-spacing:.4px;display:flex;align-items:center;gap:9px}
+.brand small{color:var(--dim);font-weight:400;font-size:12.5px}
+.spacer{flex:1}
+.search{position:relative;max-width:280px;min-width:170px}
+.search input{padding-left:32px}
+.search::before{content:"🔍";position:absolute;left:10px;top:8px;font-size:13px;opacity:.6}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 16px}
+.stat b{display:block;font-size:25px;line-height:1.25;letter-spacing:.5px}
+.stat span{color:var(--dim);font-size:12.5px}
+
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.toolbar select{width:auto;min-width:112px;padding:8px 10px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.kcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px;
+  position:relative;overflow:hidden;transition:.16s;
+  display:flex;flex-direction:column}
+.kcard:hover{border-color:#33425f;transform:translateY(-1px);box-shadow:0 10px 30px rgba(0,0,0,.32)}
+.kcard.off{opacity:.52}
+.kcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ok)}
+.kcard.off::before{background:#4a5568}
+.khead{display:flex;align-items:flex-start;gap:10px;margin-bottom:9px}
+.kname{font-weight:600;font-size:15.5px;word-break:break-all}
+.kprov{font-size:11.5px;color:var(--dim);background:#0e1622;border:1px solid var(--line);
+  padding:2px 8px;border-radius:20px;white-space:nowrap}
+.kmeta{color:var(--dim);font-size:12.5px;word-break:break-all;margin-bottom:9px}
+.krow{display:flex;align-items:center;gap:7px;background:#0e1622;border:1px solid var(--line);
+  border-radius:9px;padding:7px 10px;margin-bottom:9px}
+.krow code{flex:1;font-size:12.5px;word-break:break-all}
+.icobtn{background:transparent;padding:3px 6px;border-radius:6px;font-size:13px;line-height:1}
+.icobtn:hover{background:#22304a}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.chip{font-size:11.5px;padding:2px 9px;border-radius:20px;background:#182740;border:1px solid #26374f;color:#9fc0ef}
+.chip.t{background:#241d33;border-color:#3b3050;color:#c4a8f0}
+.note{font-size:12.5px;color:var(--dim);margin-bottom:10px;white-space:pre-wrap;word-break:break-word}
+.acts{display:flex;gap:7px;flex-wrap:wrap;padding-top:11px;border-top:1px solid var(--line);
+  margin-top:auto}
+.badge{font-size:11.5px;padding:2px 9px;border-radius:20px;white-space:nowrap}
+.b-ok{background:#10291f;color:var(--ok);border:1px solid #1d4433}
+.b-off{background:#242a33;color:#94a3b8;border:1px solid #333d4b}
+.b-err{background:#2a1618;color:var(--err);border:1px solid #4a2230}
+.b-warn{background:#2b2110;color:var(--warn);border:1px solid #4a3a1a}
+.ord{font-size:11.5px;font-weight:700;color:#9fc0ef;background:#152238;border:1px solid #26374f;
+  border-radius:7px;padding:3px 8px;min-width:32px;text-align:center;flex-shrink:0}
+.ordbtns{display:flex;flex-direction:column;gap:1px;flex-shrink:0}
+.ordbtns .icobtn{padding:0 3px;font-size:9px;line-height:1.4;color:var(--dim)}
+.ordbtns .icobtn:hover{color:var(--fg)}
+.coolbox{background:#2b2110;border:1px solid #4a3a1a;border-radius:9px;padding:9px 12px;
+  margin-bottom:9px;font-size:12.5px;color:#f0d9a8;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.coolbox .btn{margin-left:auto}
+.empty{text-align:center;padding:70px 20px;color:var(--dim)}
+.empty div:first-child{font-size:46px;margin-bottom:12px}
+
+/* ── 弹窗 ── */
+.spin{display:inline-block;width:11px;height:11px;border:2px solid currentColor;
+  border-right-color:transparent;border-radius:50%;vertical-align:-1px;
+  animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.mask{position:fixed;inset:0;background:rgba(4,7,12,.74);backdrop-filter:blur(4px);display:flex;
+  align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto;z-index:50}
+.modal{width:100%;max-width:600px;background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.6);
+  max-height:92vh;overflow-y:auto}          /* ★ 弹窗再高也能滚到底部按钮 */
+.modal h2{margin:0 0 18px;font-size:18px}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:12.5px;color:var(--dim);margin-bottom:5px}
+.fld label b{color:var(--err)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hint{font-size:11.5px;color:var(--dim);margin-top:5px}
+.mrow{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.sw{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+.sw input{width:auto}
+.pwbox{display:flex;gap:8px}
+.mbar{display:flex;gap:7px;margin-top:9px;align-items:center}
+.mbar input{flex:1;padding:6px 10px;font-size:12.5px}
+.mname{font-size:11.5px;color:var(--dim);margin:8px 0 5px}
+.mlist{max-height:170px;overflow:auto;display:flex;flex-wrap:wrap;gap:6px;
+  background:#0e1622;border:1px solid var(--line);border-radius:9px;padding:9px}
+.mchip{font-size:11.5px;padding:3px 10px;border-radius:20px;cursor:pointer;user-select:none;
+  background:#182740;border:1px solid #26374f;color:#9fc0ef;transition:.14s}
+.mchip:hover{border-color:var(--acc);color:#fff}
+.mchip.sel{background:#123a2a;border-color:#1d6b4a;color:#5ee0a0;font-weight:600}
+code.blk{display:block;background:#0e1622;border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+  font-size:12px;word-break:break-all;color:#9fc0ef}
+
+/* ── toast ── */
+#toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:9px;z-index:99}
+.toast{background:var(--card2);border:1px solid var(--line);border-left:3px solid var(--acc);
+  border-radius:10px;padding:11px 15px;max-width:330px;box-shadow:0 12px 34px rgba(0,0,0,.45);
+  animation:in .22s ease;font-size:13px}
+.toast.ok{border-left-color:var(--ok)} .toast.err{border-left-color:var(--err)}
+.toast.warn{border-left-color:var(--warn)}
+@keyframes in{from{opacity:0;transform:translateY(10px)}}
+@media(max-width:560px){.grid2{grid-template-columns:1fr}#app{padding:14px}}
+</style>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png">
+<link rel="icon" href="/favicon.ico">
+</head>
+<body>
+
+<!-- ══════ 登录 ══════ -->
+<div id="login">
+  <div class="lcard">
+    <div class="lock">🔐</div>
+    <h1>AI 密钥管理中心</h1>
+    <p>请输入访问口令以继续</p>
+    <input id="pw" type="password" placeholder="访问口令" autocomplete="current-password" />
+    <label class="sw" style="margin-top:13px;font-size:13px">
+      <input id="remember" type="checkbox" checked />
+      记住登录 <b style="color:var(--acc)">7&nbsp;天</b>（本机不用再输口令）
+    </label>
+    <button class="btn btn-p" onclick="doLogin()">进入后台 →</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ══════ 后台 ══════ -->
+<div id="app" hidden>
+  <header>
+    <div class="brand">🎛️ AI 密钥管理中心 <small id="brandSub"></small></div>
+    <div class="spacer"></div>
+    <div class="search"><input id="q" placeholder="搜索名称 / 模型 / 标签" oninput="render()" /></div>
+    <button class="btn btn-p" onclick="openEditor()">＋ 新增密钥</button>
+    <button class="btn" onclick="openSettings()">⚙️ 设置</button>
+    <button class="btn" onclick="doLogout()">退出</button>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="toolbar">
+    <select id="fProv" onchange="render()"><option value="">全部提供商</option></select>
+    <select id="fStat" onchange="render()">
+      <option value="">全部状态</option>
+      <option value="on">仅已启用</option>
+      <option value="off">仅已停用</option>
+    </select>
+    <select id="fSort" onchange="render()">
+      <option value="prio">按使用顺序</option>
+      <option value="new">最近添加</option>
+      <option value="name">按名称</option>
+      <option value="prov">按提供商</option>
+    </select>
+    <div class="spacer"></div>
+    <span id="cnt" style="color:var(--dim);font-size:12.5px"></span>
+  </div>
+
+  <div class="grid" id="list"></div>
+  <div id="emptyBox" class="empty" hidden>
+    <div>📭</div>
+    <div>还没有任何密钥 —— 点右上角「＋ 新增密钥」开始</div>
+  </div>
+</div>
+
+<div id="modals"></div>
+<div id="toasts"></div>
+
+<script>
+/* ══════════════════ 基础工具 ══════════════════ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(method, path, body) {
+  const r = await fetch(path, {
+    method,
+    credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'fetch'},
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  let j = null;
+  try { j = await r.json(); } catch (e) {}
+  if (r.status === 401) { showLogin(); throw new Error('未登录'); }
+  if (!r.ok) {
+    const err = new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
+    err.payload = j || {};              // ★ 让调用方能拿到 test 等附加信息
+    err.status = r.status;
+    throw err;
+  }
+  return j;
+}
+
+function toast(msg, kind = '') {
+  const d = document.createElement('div');
+  d.className = 'toast ' + kind;
+  d.textContent = msg;
+  $('#toasts').appendChild(d);
+  setTimeout(() => { d.style.opacity = 0; setTimeout(() => d.remove(), 300); }, 3200);
+}
+
+function copy(text, label = '已复制') {
+  const done = () => toast('📋 ' + label, 'ok');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallback());
+  } else fallback();
+  function fallback() {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = 0;
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { toast('复制失败，请手动选择', 'err'); }
+    ta.remove();
+  }
+}
+
+/* ══════════════════ 状态 ══════════════════ */
+let KEYS = [], SETTINGS = {}, PROV = {};
+
+const PRESETS = {
+  'OpenAI':       'https://api.openai.com/v1',
+  'DeepSeek':     'https://api.deepseek.com/v1',
+  'Moonshot':     'https://api.moonshot.cn/v1',
+  '智谱 AI':       'https://open.bigmodel.cn/api/paas/v4',
+  '通义千问':      'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  'SiliconFlow':  'https://api.siliconflow.cn/v1',
+  'OpenRouter':   'https://openrouter.ai/api/v1',
+  'Groq':         'https://api.groq.com/openai/v1',
+  '零一万物':      'https://api.lingyiwanwu.com/v1',
+  'MiniMax':      'https://api.minimax.chat/v1',
+  'Ollama(本地)':  'http://127.0.0.1:11434/v1',
+  '自建 / 其他':   ''
+};
+
+/* ══════════════════ 登录 ══════════════════ */
+function showLogin() { $('#login').hidden = false; $('#app').hidden = true; }
+
+async function boot() {
+  try {
+    const s = await api('GET', '/api/session');
+    if (s.logged_in) { enterApp(); return; }
+  } catch (e) {}
+  showLogin();
+}
+
+async function enterApp() {
+  try {                                   // ★ 先取会话信息，再显示界面
+    const s = await api('GET', '/api/session');
+    SETTINGS = s.settings || {};
+    SETTINGS.session_exp = s.session_exp || 0;
+  } catch (e) {}
+  $('#login').hidden = true; $('#app').hidden = false;
+  $('#brandSub').textContent = '';
+  refresh();
+}
+
+async function doLogin() {
+  const pw = $('#pw').value;
+  if (!pw) { $('#loginErr').textContent = '请输入口令'; return; }
+  $('#loginErr').textContent = '';
+  try {
+    const remember = $('#remember') ? $('#remember').checked : true;
+    const d = await api('POST', '/api/login', { password: pw, remember });
+    $('#pw').value = '';
+    await enterApp();
+    toast(remember ? '✅ 登录成功 · 本机记住 7 天' : '✅ 登录成功（关闭浏览器需重新输入）', 'ok');
+  } catch (e) { $('#loginErr').textContent = '❌ ' + e.message; }
+}
+
+async function doLogout() {
+  try { await api('POST', '/api/logout'); } catch (e) {}
+  KEYS = []; showLogin();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !$('#login').hidden && document.activeElement === $('#pw')) doLogin();
+  if (e.key === 'Escape') closeModal();
+});
+
+/* ══════════════════ 数据 ══════════════════ */
+async function refresh() {
+  try {
+    const d = await api('GET', '/api/keys');
+    KEYS = d.keys || []; PROV = d.providers || {};
+    const keepExp = SETTINGS.session_exp;          // ★ 别让 /api/keys 把会话有效期覆盖掉
+    SETTINGS = d.settings || SETTINGS;
+    SETTINGS.session_exp = keepExp || SETTINGS.session_exp || 0;
+    fillProvFilter(); render();
+  } catch (e) { toast('加载失败: ' + e.message, 'err'); }
+}
+
+function fillProvFilter() {
+  const sel = $('#fProv'), cur = sel.value;
+  const set = [...new Set(KEYS.map(k => k.provider).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">全部提供商</option>' +
+    set.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+  sel.value = set.includes(cur) ? cur : '';
+}
+
+function visible() {
+  const q = $('#q').value.trim().toLowerCase();
+  const fp = $('#fProv').value, fs = $('#fStat').value, so = $('#fSort').value;
+  let a = KEYS.filter(k => {
+    if (fp && k.provider !== fp) return false;
+    if (fs === 'on' && !k.enabled) return false;
+    if (fs === 'off' && k.enabled) return false;
+    if (!q) return true;
+    return [k.name, k.provider, k.base_url, k.note, (k.models||[]).join(' '),
+            (k.tags||[]).join(' ')].join(' ').toLowerCase().includes(q);
+  });
+  a.sort((x, y) =>
+    so === 'prio' ? (x.priority || 999) - (y.priority || 999) :
+    so === 'name' ? x.name.localeCompare(y.name, 'zh') :
+    so === 'prov' ? (x.provider||'').localeCompare(y.provider||'', 'zh') || x.name.localeCompare(y.name,'zh') :
+    (y.created || '').localeCompare(x.created || ''));
+  return a;
+}
+
+function render() {
+  const a = visible(), all = KEYS.length;
+  const avail = KEYS.filter(k => k.state === 'ok').length;        // ★ 跟徽章同一口径
+  const cool  = KEYS.filter(k => k.state === 'cooling').length;
+  const provs = new Set(KEYS.map(k => k.provider).filter(Boolean)).size;
+  $('#stats').innerHTML = `
+    <div class="stat"><b>${all}</b><span>🔑 密钥总数</span></div>
+    <div class="stat"><b style="color:var(--ok)">${avail}</b><span>✅ 网关可用</span></div>
+    <div class="stat"><b style="color:var(--warn)">${cool}</b><span>⛔ 不可用</span></div>
+    <div class="stat"><b style="color:var(--acc2)">${provs}</b><span>🏢 提供商</span></div>`;
+  $('#cnt').textContent = `显示 ${a.length} / ${all} 条`;
+
+  $('#emptyBox').hidden = all > 0;
+  $('#list').innerHTML = a.map(card).join('');
+}
+
+const REASON = {quota:'额度不足 / 无费用', auth:'密钥无效', rate:'被限速（429）',
+                server:'上游服务器故障', net:'网络/连接错误', other:'上游报错'};
+
+function healthBadge(k) {
+  const s = k.state || (k.enabled ? (k.cooling ? 'cooling' : 'ok') : 'off');
+  if (s === 'off') return '<span class="badge b-off">⚪ 已停用</span>';
+  if (s === 'cooling') {
+    const n = k.cooldown_left;
+    return `<span class="badge b-warn">⛔ 不可用${n > 0 ? ' ' + n + 's' : ''}</span>`;
+  }
+  return '<span class="badge b-ok">🟢 可用</span>';
+}
+
+function card(k) {
+  const models = (k.models || []);
+  const shown = models.slice(0, 8);
+  const more  = models.length - shown.length;
+  const lt = k.last_test;
+  return `
+  <div class="kcard ${k.enabled ? '' : 'off'}">
+    <div class="khead">
+      <span class="ord" title="使用顺序（越小越先用）">#${k.priority || '-'}</span>
+      <div class="ordbtns">
+        <button class="icobtn" title="上移（更先用）" onclick="moveKey('${k.id}','up')">▲</button>
+        <button class="icobtn" title="下移" onclick="moveKey('${k.id}','down')">▼</button>
+      </div>
+      <div class="kname">${esc(k.name)}</div>
+      <div style="flex:1"></div>
+      ${healthBadge(k)}
+    </div>
+    <div class="kmeta">
+      ${k.provider ? `<span class="kprov">${esc(k.provider)}</span> ` : ''}
+      <span class="mono">${esc(k.base_url)}</span>
+    </div>
+    <div class="krow">
+      <code class="mono" id="kv-${k.id}">${esc(k.key_hint || '—')}</code>
+      <button class="icobtn" title="显示/隐藏" onclick="toggleReveal('${k.id}')">👁</button>
+      <button class="icobtn" title="复制密钥" onclick="copyKey('${k.id}')">📋</button>
+    </div>
+    ${shown.length ? `<div class="chips">${shown.map(m => `<span class="chip">${esc(m)}</span>`).join('')}
+      ${more > 0 ? `<span class="chip">+${more}</span>` : ''}</div>` : ''}
+    ${(k.tags||[]).length ? `<div class="chips">${k.tags.map(t => `<span class="chip t">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${k.note ? `<div class="note">📝 ${esc(k.note)}</div>` : ''}
+    ${lt ? `<div style="font-size:12px;color:var(--dim);margin-bottom:8px">
+       ${lt.ok ? '✅' : '🔴'} 最近测试 ${esc(lt.at)} · ${esc(lt.msg || '')}</div>` : ''}
+    ${k.state === 'cooling' ? `<div class="coolbox">
+       <span>⛔ <b>不可用</b> —— ${esc(REASON[k.reason] || '上游异常')}${
+         k.last_error ? '：' + esc(k.last_error.slice(0, 110)) : ''}<br>
+         ${k.cooldown_left > 0
+           ? `<b>${k.cooldown_left}</b> 秒后自动检测一次，通了就恢复可用，不通则重新计时`
+           : '正在自动检测，通了就恢复可用，不通则重新计时'} —— 期间自动跳过，改用下一家</span>
+       <button class="btn btn-s" onclick="resetHealth('${k.id}')">♻️ 立即恢复</button></div>` : ''}
+    <div class="acts">
+      <button class="btn btn-s" onclick="testKey('${k.id}',this)">🧪 测试</button>
+      <button class="btn btn-s" onclick="toggleOn('${k.id}', ${!k.enabled})">${k.enabled ? '⏸ 停用' : '▶ 启用'}</button>
+      <button class="btn btn-s" onclick="openEditor('${k.id}')">✏️ 编辑</button>
+      <button class="btn btn-s btn-d" onclick="delKey('${k.id}')">🗑 删除</button>
+    </div>
+  </div>`;
+}
+
+const revealed = {};
+async function toggleReveal(id) {
+  const el = $('#kv-' + id);
+  if (revealed[id]) { el.textContent = revealed[id].hint; revealed[id] = null; return; }
+  try {
+    const d = await api('GET', '/api/keys/' + id + '/reveal');
+    revealed[id] = { hint: el.textContent, plain: d.key };
+    el.textContent = d.key;
+    toast('已显示明文，注意旁人视线', 'warn');
+  } catch (e) { toast('读取失败: ' + e.message, 'err'); }
+}
+
+async function copyKey(id) {
+  try {
+    const d = await api('GET', '/api/keys/' + id + '/reveal');
+    copy(d.key, 'API 密钥已复制');
+  } catch (e) { toast('复制失败: ' + e.message, 'err'); }
+}
+
+async function toggleOn(id, on) {
+  try { await api('PUT', '/api/keys/' + id, { enabled: on }); await refresh(); toast(on ? '已启用' : '已停用', 'ok'); }
+  catch (e) { toast('操作失败: ' + e.message, 'err'); }
+}
+
+async function delKey(id) {
+  const k = KEYS.find(x => x.id === id);
+  if (!confirm(`确定删除「${k ? k.name : id}」？此操作不可撤销。`)) return;
+  try { await api('DELETE', '/api/keys/' + id); await refresh(); toast('🗑 已删除', 'ok'); }
+  catch (e) { toast('删除失败: ' + e.message, 'err'); }
+}
+
+async function moveKey(id, dir) {
+  try {
+    const r = await api('POST', '/api/keys/' + id + '/move', {direction: dir});
+    await refresh();
+    if (r && r.moved === false) toast(dir === 'up' ? '已经在最前面了' : '已经在最后面了');
+  } catch (e) { toast('调整顺序失败: ' + e.message, 'err'); }
+}
+
+async function resetHealth(id) {
+  try {
+    await api('POST', '/api/keys/' + id + '/reset');
+    await refresh();
+    toast('♻️ 已恢复，重新参与调度', 'ok');
+  } catch (e) { toast('操作失败: ' + e.message, 'err'); }
+}
+
+async function testAll(btn) {
+  // ★ 逐个真发消息，可能要等（每个最长 30 秒）
+  const old = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 逐个发消息…'; }
+  toast('🧪 正在批量发送测试消息，请稍候…');
+  try {
+    const d = await api('POST', '/api/test-all');
+    const rs = d.results || [];
+    const ok = rs.filter(r => r.ok).length;
+    await refresh();
+    toast(`批量测试完成：${ok}/${rs.length} 正常`,
+          ok === rs.length ? 'ok' : 'warn');
+    const bad = rs.filter(r => !r.ok);
+    if (bad.length) {
+      // 把失败原因摊开给用户看（不只是个数）
+      BATCH_BAD = bad.map(r => `${r.name}: ${r.msg || '未知'}` +
+                               (r.need_model ? '' : (r.cooldown ? ` ·冷却${r.cooldown}秒` : '')));
+      showBatch();
+    }
+  } catch (e) { toast('批量测试失败: ' + e.message, 'err'); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+}
+
+/* 批量测试的失败明细弹窗 */
+let BATCH_BAD = [];
+function showBatch() {
+  if (!BATCH_BAD.length) return;
+  $('#modals').innerHTML = `
+    <div class="mask" onclick="closeModal()">
+      <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
+        <h3>⚠️ 这些密钥没通过</h3>
+        <div class="hint" style="margin-bottom:12px">
+          测试方式是「真发一条消息」：能收到回复才算正常。</div>
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto">
+          ${BATCH_BAD.map(t => `<div class="mono" style="font-size:12.5px;padding:11px 13px;line-height:1.55;
+            background:rgba(255,90,90,.08);border:1px solid rgba(255,90,90,.25);
+            border-radius:8px;word-break:break-all">🔴 ${esc(t)}</div>`).join('')}
+        </div>
+        <div class="acts" style="margin-top:16px;justify-content:flex-end">
+          <button class="btn btn-p" onclick="closeModal()">知道了</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function testKey(id, btn) {
+  // ★ 真实对话探测：真发一条消息，有回复=正常，报错=不可用
+  const old = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 发消息…'; }
+  toast('🧪 正在发送测试消息（最长等 30 秒）…');
+  try {
+    const d = await api('POST', '/api/keys/' + id + '/test');
+    await refresh();
+    if (d.ok) {
+      const rep = d.reply ? ` · 回复「${esc(String(d.reply).slice(0, 24))}」` : '';
+      toast(`✅ 正常 · ${esc(d.model || '')}${rep} · ${d.ms}ms`, 'ok');
+    } else {
+      const cd = d.cooldown ? `（冷却 ${d.cooldown} 秒）` : '';
+      toast('🔴 不可用: ' + (d.msg || '未知错误') + cd, 'err');
+    }
+  } catch (e) { toast('测试失败: ' + e.message, 'err'); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+}
+
+/* ══════════════════ 编辑器 ══════════════════ */
+function closeModal() { $('#modals').innerHTML = ''; FETCHED = []; EDIT_ID = ''; }
+
+let FETCHED = [], EDIT_ID = '';
+
+function openEditor(id) {
+  EDIT_ID = id || '';
+  FETCHED = [];
+  const k = id ? KEYS.find(x => x.id === id) : null;
+  const provOpts = Object.keys(PRESETS).map(p =>
+    `<option value="${esc(p)}">${esc(p)}</option>`).join('') +
+    (k && k.provider && !PRESETS[k.provider] ? `<option value="${esc(k.provider)}">${esc(k.provider)}</option>` : '');
+  $('#modals').innerHTML = `
+  <div class="mask" onclick="if(event.target===this)closeModal()">
+   <div class="modal">
+    <h2>${k ? '✏️ 编辑密钥' : '＋ 新增密钥'}</h2>
+    <div class="fld"><label>名称 <b>*</b></label>
+      <input id="e_name" value="${esc(k ? k.name : '')}" placeholder="例如：OpenAI 主力号" /></div>
+    <div class="grid2">
+      <div class="fld"><label>提供商</label>
+        <select id="e_prov" onchange="onProvChange()">${provOpts}</select></div>
+      <div class="fld"><label>Base URL（OpenAI 兼容）<b>*</b></label>
+        <input id="e_url" class="mono" value="${esc(k ? k.base_url : PRESETS['OpenAI'])}" placeholder="https://api.openai.com/v1" /></div>
+    </div>
+    <div class="fld"><label>API Key <b>*</b></label>
+      <input id="e_key" class="mono" type="password" placeholder="${k ? '留空 = 不修改（当前 ' + esc(k.key_hint) + '）' : 'sk-...'}" />
+      <div class="hint">🔒 服务端加密存储；输出接口只返回掩码，点「👁」才会取明文。<br>
+        🧪 <b>保存前会自动检测一次</b>：不通不会添加（可手动选择强制添加）。</div></div>
+    <div class="fld"><label>模型（只能选一个 —— 点下方标签直接选中）</label>
+      <input id="e_models" class="mono" placeholder="gpt-4o"
+             value="${esc((k && k.models || []).slice(0, 1).join(''))}" />
+      <div style="display:flex;gap:9px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-s" id="mFetchBtn" onclick="fetchModels()">📥 拉取模型</button>
+        <span class="hint" style="margin:0">按上面填的 Base URL + API Key 实时拉取，点标签直接选中</span>
+      </div>
+      <div id="mWrap" hidden>
+        <div class="mbar">
+          <input id="mSearch" placeholder="🔍 筛选模型…" oninput="renderModelChips()" />
+          <button class="btn btn-s" onclick="setModels([])">清空</button>
+        </div>
+        <div class="mname" id="mCount"></div>
+        <div class="mlist" id="mList"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="fld"><label>标签（逗号分隔）</label>
+        <input id="e_tags" value="${esc((k && k.tags || []).join(', '))}" placeholder="生产, 主力" /></div>
+      <div class="fld"><label>状态</label>
+        <label class="sw" style="padding-top:9px">
+          <input id="e_on" type="checkbox" ${!k || k.enabled ? 'checked' : ''} /> 启用（参与自动切换）
+        </label></div>
+    </div>
+    <div class="fld"><label>使用顺序 —— 网关按这个顺序依次尝试（数字越小越先用）</label>
+      <input id="e_prio" type="number" min="1" value="${k ? (k.priority || 1) : (KEYS.length + 1)}" />
+      <div class="hint">例：1 = 主力、2 = 备用、3 = 保底。主力欠费/限速时自动切到 2，客户端无感。</div></div>
+    <div class="fld"><label>备注 / 附加信息</label>
+      <textarea id="e_note" rows="2" placeholder="额度、到期时间、联系人…">${esc(k ? (k.note || '') : '')}</textarea></div>
+    <div class="mrow">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-p" onclick="saveKey('${k ? k.id : ''}')">${k ? '💾 保存' : '🧪 保存并测试'}</button>
+    </div>
+   </div>
+  </div>`;
+  if (k) setTimeout(() => $('#e_key').focus(), 60);
+}
+
+function onProvChange() {
+  const p = $('#e_prov').value;
+  if (PRESETS[p] !== undefined) $('#e_url').value = PRESETS[p];
+}
+
+function splitList(s) {
+  return String(s || '').split(/[,\n，、]/).map(x => x.trim()).filter(Boolean);
+}
+
+async function fetchModels() {
+  const url = ($('#e_url') ? $('#e_url').value : '').trim();
+  const pk  = ($('#e_key') ? $('#e_key').value : '').trim();
+  if (!url) { toast('请先填写 Base URL', 'err'); return; }
+  if (!pk && !EDIT_ID) { toast('请先填写 API Key', 'err'); return; }
+  const btn = $('#mFetchBtn');
+  btn.disabled = true; btn.textContent = '⏳ 拉取中…';
+  try {
+    const r = await api('POST', '/api/fetch-models', { base_url: url, api_key: pk, id: EDIT_ID });
+    if (!r.ok) { toast('🔴 拉取失败：' + r.msg, 'err'); return; }
+    FETCHED = r.models || [];
+    $('#mSearch').value = '';
+    renderModelChips();
+    toast(`✅ 拉到 ${FETCHED.length} 个模型，点标签选中或点「全选」`, 'ok');
+  } catch (e) {
+    toast('拉取失败：' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '📥 拉取模型';
+  }
+}
+
+function renderModelChips() {
+  const wrap = $('#mWrap');
+  if (!wrap) return;
+  if (!FETCHED.length) { wrap.hidden = true; return; }
+  const q = ($('#mSearch').value || '').toLowerCase();
+  const sel = new Set(currentModels());
+  const list = FETCHED.filter(m => !q || m.toLowerCase().includes(q));
+  $('#mCount').textContent = `共 ${FETCHED.length} 个模型`
+    + (q ? ` · 筛选出 ${list.length} 个` : '')
+    + (sel.size ? ` · 已选：${[...sel][0]}` : ' · 未选');
+  const MAX = 400;
+  $('#mList').innerHTML = list.slice(0, MAX).map(m =>
+    `<span class="mchip${sel.has(m) ? ' sel' : ''}"
+      onclick="toggleModel(decodeURIComponent('${encodeURIComponent(m)}'))">${esc(m)}</span>`
+  ).join('') + (list.length > MAX
+    ? `<span class="mchip" style="cursor:default">…还有 ${list.length - MAX} 个，请用筛选框</span>` : '');
+  wrap.hidden = false;
+}
+
+function currentModels() { return splitList($('#e_models').value); }
+function setModels(arr) { $('#e_models').value = arr.join(', '); renderModelChips(); }
+
+function toggleModel(name) {
+  const cur = currentModels();
+  // ★ 单选：点已选中的就取消，点别的就换掉（永不累加）
+  setModels(cur.length === 1 && cur[0] === name ? [] : [name]);
+}
+
+async function saveKey(id) {
+  const mL = splitList($('#e_models').value);
+  if (mL.length > 1) toast('模型只能选一个，已只保留：' + mL[0], 'warn');
+  const body = {
+    name: $('#e_name').value.trim(),
+    provider: $('#e_prov').value,
+    base_url: $('#e_url').value.trim(),
+    models: mL.slice(0, 1),
+    tags: splitList($('#e_tags').value),
+    note: $('#e_note').value,
+    enabled: $('#e_on').checked,
+    priority: +($('#e_prio').value || 0)
+  };
+  const pk = $('#e_key').value.trim();
+  if (pk) body.api_key = pk;
+  if (!body.name)  { toast('请填写名称', 'err'); return; }
+  if (!body.base_url) { toast('请填写 Base URL', 'err'); return; }
+  if (!id && !pk)  { toast('请填写 API Key', 'err'); return; }
+  try {
+    if (id) {
+      await api('PUT', '/api/keys/' + id, body);
+      closeModal(); await refresh(); toast('💾 已保存', 'ok');
+      return;
+    }
+    const r = await api('POST', '/api/keys', body);       // ★ 新增：服务端先检测
+    closeModal(); await refresh();
+    const t = r.test;
+    if (!t)                 toast('💾 已添加（未检测）', 'ok');
+    else if (t.level === 'ok')   toast('✅ 添加成功 · ' + t.msg, 'ok');
+    else                    toast('⚠️ 已添加，但' + t.msg, 'warn');
+  } catch (e) {
+    const t = e.payload && e.payload.test;
+    if (t && t.level === 'fail') {
+      const go = confirm('❌ 检测未通过，尚未添加\n\n' + t.msg
+        + '\n\n（名称：' + body.name + '）\n\n是否跳过检测、仍然强制添加？');
+      if (!go) return;
+      body.skip_test = true;
+      try {
+        await api('POST', '/api/keys', body);
+        closeModal(); await refresh();
+        toast('⚠️ 已强制添加（未通过检测，网关会先跳过它）', 'warn');
+      } catch (e2) { toast('保存失败: ' + e2.message, 'err'); }
+      return;
+    }
+    toast('保存失败: ' + e.message, 'err');
+  }
+}
+
+/* ══════════════════ 设置 ══════════════════ */
+function openSettings() {
+  const gw = SETTINGS.gateway_url || (location.origin + '/v1');
+  $('#modals').innerHTML = `
+  <div class="mask" onclick="if(event.target===this)closeModal()">
+   <div class="modal" style="max-width:660px">
+    <h2>⚙️ 设置</h2>
+
+    <div class="fld"><label>🔒 当前登录状态</label>
+      <div class="hint">本机已记住登录，有效期至 <b>${sessionExpText()}</b>。
+        到期后需重新输入口令（或现在点右上角「退出」立即注销）。</div></div>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:0 0 20px" />
+
+    <div class="fld"><label>🔑 修改访问口令</label>
+      <div class="pwbox">
+        <input id="s_old" type="password" placeholder="当前口令" />
+        <input id="s_new" type="password" placeholder="新口令（≥6 位）" />
+        <input id="s_new2" type="password" placeholder="确认新口令" />
+      </div>
+      <div class="hint">改完会注销所有登录会话，需重新登录。</div></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:22px">
+      <button class="btn btn-p" onclick="changePw()">修改口令</button></div>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:0 0 20px" />
+
+    <div class="fld"><label>🌐 统一网关地址（OpenAI 兼容）</label>
+      <code class="blk mono">${esc(gw)}</code>
+      <div class="hint">把任何 OpenAI 客户端（Cherry Studio / NextChat / Cursor / one-api…）的
+        Base URL 指向这里，即可用下面这个令牌调用你导入的全部密钥（模型名见下方）。</div></div>
+    <div class="fld"><label>🎫 网关令牌</label>
+      <div class="pwbox">
+        <input id="s_gw" class="mono" type="password" value="${esc(SETTINGS.gateway_token || '')}" readonly />
+        <button class="icobtn" style="border:1px solid var(--line);padding:0 12px"
+          onclick="const i=document.getElementById('s_gw');i.type=i.type==='password'?'text':'password'">👁</button>
+        <button class="btn" onclick="copy(document.getElementById('s_gw').value,'网关令牌已复制')">📋</button>
+        <button class="btn" onclick="rollToken()">♻️ 重置</button>
+      </div>
+      <div class="hint">客户端里 API Key 填这个令牌即可。重置后旧令牌立即失效。</div></div>
+
+    <div class="fld"><label>🧩 客户端连接时填写的模型名称</label>
+      <div class="pwbox">
+        <input id="s_alias" class="mono" value="${esc(SETTINGS.model_alias || 'auto')}"
+               placeholder="auto" />
+        <button class="btn btn-p" onclick="saveAlias()">保存</button>
+      </div>
+      <div class="hint">客户端（Cherry Studio / NextChat / Cursor / one-api…）里
+        <b>「模型」那一栏就填这个名字</b>：网关收到它时，会自动挑当前可用的密钥来响应 ——
+        也就是你的「综合模型」，<b>永远能通</b>。</div></div>
+
+    <div class="fld"><label>🔀 自动切换（故障转移）规则</label>
+      <div class="hint" style="line-height:2">
+        网关按列表的 <b>使用顺序</b> 依次尝试，遇到下列情况就把该密钥标为
+        <b>⛔ 不可用</b> 并自动跳过、切下一家，<b>客户端完全无感</b>：<br>
+        · 💰 <b>额度不足 / 无费用</b>（402 或提示 insufficient / 欠费）→ 不可用 <b>30 分钟</b><br>
+        · 🔑 <b>密钥无效</b>（401 / 403）→ 不可用 <b>60 分钟</b><br>
+        · ⏱ <b>被限速</b>（429）→ 不可用 <b>30 秒</b>，很快自动恢复<br>
+        · 💥 <b>上游故障</b>（5xx）→ 不可用 <b>60 秒</b><br>
+        · 🌐 <b>网络超时</b> → 不可用 <b>30 秒</b><br>
+        倒计时结束会<b>自动检测一次</b>：通了就恢复 🟢 可用，不通则重新计时。
+        也可在卡片上点「♻️ 立即恢复」。<br>
+        <b>客户端的模型名填 <code>${esc(SETTINGS.model_alias || 'auto')}</code> 时</b>：
+        总是挑当前可用的第一家，用它的模型（可点上方的输入框改）。
+      </div></div>
+    <div style="display:flex;gap:9px;margin-bottom:22px;flex-wrap:wrap">
+      <button class="btn" onclick="testAll(this)">🧪 批量测试全部密钥</button>
+      <button class="btn" onclick="openLogs()">📜 网关日志</button>
+    </div>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:0 0 20px" />
+
+    <div class="fld"><label>📦 数据备份</label>
+      <div style="display:flex;gap:9px;flex-wrap:wrap">
+        <button class="btn" onclick="exportJson()">⬇️ 导出全部（含明文密钥）</button>
+        <button class="btn" onclick="document.getElementById('impFile').click()">⬆️ 导入 JSON</button>
+        <input id="impFile" type="file" accept=".json,application/json" hidden onchange="importJson(this)" />
+      </div>
+      <div class="hint">⚠️ 导出的文件包含**明文密钥**，请妥善保管。导入为「合并」模式（同名同 URL 覆盖）。</div></div>
+
+    <div class="mrow"><button class="btn btn-p" onclick="closeModal()">关闭</button></div>
+   </div>
+  </div>`;
+}
+
+function sessionExpText() {
+  const t = SETTINGS.session_exp;
+  if (!t) return '未知';
+  const d = new Date(t * 1000), now = Date.now() / 1000;
+  const secs = Math.max(0, t - now);
+  const dd = Math.floor(secs / 86400), hh = Math.floor((secs % 86400) / 3600);
+  const left = dd > 0 ? `${dd} 天 ${hh} 小时` : `${hh} 小时`;
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+       + `${p(d.getHours())}:${p(d.getMinutes())}（还剩 ${left}）`;
+}
+
+async function changePw() {
+  const o = $('#s_old').value, n = $('#s_new').value, n2 = $('#s_new2').value;
+  if (n.length < 6) { toast('新口令至少 6 位', 'err'); return; }
+  if (n !== n2) { toast('两次新口令不一致', 'err'); return; }
+  try {
+    await api('POST', '/api/password', { old: o, new: n });
+    toast('✅ 口令已修改，请重新登录', 'ok');
+    closeModal(); showLogin();
+  } catch (e) { toast('修改失败: ' + e.message, 'err'); }
+}
+
+async function saveAlias() {
+  const v = ($('#s_alias').value || '').trim();
+  if (!v) { toast('模型名称不能为空', 'err'); return; }
+  try {
+    const r = await api('POST', '/api/settings', { model_alias: v });
+    SETTINGS.model_alias = r.model_alias;
+    toast('✅ 已保存 · 客户端模型名填：' + r.model_alias, 'ok');
+  } catch (e) { toast('保存失败：' + e.message, 'err'); }
+}
+
+async function rollToken() {
+  if (!confirm('重置网关令牌？旧令牌会立即失效。')) return;
+  try {
+    const d = await api('POST', '/api/gateway-token');
+    SETTINGS.gateway_token = d.token;
+    openSettings(); toast('♻️ 令牌已重置', 'ok');
+  } catch (e) { toast('重置失败: ' + e.message, 'err'); }
+}
+
+async function openLogs() {
+  try {
+    const d = await api('GET', '/api/logs');
+    const rows = (d.logs || []).filter(l => /网关|故障转移/.test(l.action)).slice(0, 80);
+    $('#modals').innerHTML = `
+    <div class="mask" onclick="if(event.target===this)closeModal()">
+     <div class="modal" style="max-width:780px">
+      <h2>📜 网关日志 —— 转发与自动切换记录</h2>
+      <div style="max-height:62vh;overflow:auto">
+      ${rows.length ? rows.map(l => `<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px">
+        <span style="color:var(--dim)">${esc(l.at)}</span>
+        <b style="margin-left:8px">${esc(l.action)}</b>
+        <div style="color:var(--dim);word-break:break-all">${esc(l.detail)}</div></div>`).join('')
+      : '<div style="padding:30px;text-align:center;color:var(--dim)">还没有网关调用记录</div>'}
+      </div>
+      <div class="mrow"><button class="btn btn-p" onclick="closeModal()">关闭</button></div>
+     </div>
+    </div>`;
+  } catch (e) { toast('读取日志失败: ' + e.message, 'err'); }
+}
+
+function exportJson() {
+  location.href = '/api/export';
+}
+
+async function importJson(input) {
+  const f = input.files[0]; if (!f) return;
+  try {
+    const txt = await f.text();
+    const d = await api('POST', '/api/import', JSON.parse(txt));
+    toast(`✅ 导入完成：新增 ${d.added}，更新 ${d.updated}`, 'ok');
+    await refresh();
+  } catch (e) { toast('导入失败: ' + e.message, 'err'); }
+  input.value = '';
+}
+
+// 每 10 秒刷新，让「冷却剩余秒数」自己走
+setInterval(() => {
+  if (!$('#app').hidden && !$('#modals').innerHTML.trim()
+      && document.visibilityState === 'visible') refresh();
+}, 5000);
+
+boot();
+</script>
+</body>
+</html>
